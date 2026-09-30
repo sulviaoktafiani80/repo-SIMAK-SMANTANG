@@ -1,0 +1,29 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+    function profile() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+    }
+    function isManagement() {
+      return signedIn() && profile().active == true &&
+        (profile().role == 'Kepala Sekolah' || profile().role == 'Wakil Kurikulum');
+    }
+
+    match /school-documents/{allPaths=**} {
+      allow read: if signedIn();
+      allow write: if isManagement();
+    }
+
+    match /permission-evidence/{userId}/{allPaths=**} {
+      allow read: if signedIn();
+      allow write: if signedIn();
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

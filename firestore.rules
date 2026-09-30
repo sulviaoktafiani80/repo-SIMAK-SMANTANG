@@ -1,0 +1,45 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+    function profile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    function roleIs(role) {
+      return signedIn() && profile().role == role && profile().active == true;
+    }
+    function isManagement() {
+      return roleIs('Kepala Sekolah') || roleIs('Wakil Kurikulum');
+    }
+    function isSchoolStaff() {
+      return isManagement() || roleIs('Guru') || roleIs('Guru Piket') || roleIs('Tenaga Kependidikan');
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isManagement());
+      allow create, update, delete: if isManagement();
+    }
+
+    match /students/{studentId} {
+      allow read: if isSchoolStaff();
+      allow write: if isManagement() || roleIs('Tenaga Kependidikan');
+    }
+
+    match /academicPeriods/{id} {
+      allow read: if signedIn();
+      allow write: if isManagement();
+    }
+
+    match /systemConfig/{id} {
+      allow read: if signedIn();
+      allow write: if isManagement();
+    }
+
+    match /{collection}/{docId} {
+      allow read: if isSchoolStaff();
+      allow write: if isManagement() || roleIs('Guru') || roleIs('Guru Piket');
+    }
+  }
+}
